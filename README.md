@@ -75,6 +75,7 @@ those specifications are proposed, debated, and finalized.
 | Number | Title | Type | Status |
 |-------:|-------|------|--------|
 | [1](AIPS/aip-1.md) | AIP Purpose and Guidelines | Meta | Living |
+| [2](AIPS/aip-2.md) | Recognized Usage Trust | Standards Track | Draft |
 
 ## Validation
 
