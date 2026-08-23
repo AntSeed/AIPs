@@ -14,16 +14,6 @@ const out = join(root, '_site');
 const REPO = 'https://github.com/AntSeed/AIPs';
 
 const STATUS_ORDER = ['Living', 'Final', 'Last Call', 'Review', 'Draft', 'Stagnant', 'Withdrawn'];
-const STATUS_BLURB = {
-  Living: 'Continually updated; never reaches finality.',
-  Final: 'The accepted standard.',
-  'Last Call': 'Final review window before Final.',
-  Review: 'Author has requested peer review.',
-  Draft: 'Well-formed and formally tracked; content still changing.',
-  Stagnant: 'Inactive for six months or more.',
-  Withdrawn: 'Withdrawn by the author.',
-};
-
 const md = new MarkdownIt({ html: true, linkify: true, typographer: true }).use(anchor, {
   permalink: anchor.permalink.linkInsideHeader({ symbol: '#', placement: 'after', class: 'h-anchor' }),
 });
@@ -59,7 +49,6 @@ function parse(file) {
 const renderAuthors = (author) =>
   esc(author).replace(/\(@([A-Za-z0-9-]+)\)/g, '(<a href="https://github.com/$1">@$1</a>)');
 
-const statusClass = (s) => `status-${s.toLowerCase().replace(/\s+/g, '-')}`;
 
 function tocFor(body) {
   const items = [];
@@ -91,13 +80,13 @@ const page = ({ title, description, canonicalPath, content, extraClass = '' }) =
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=general-sans@500,600,700&display=swap" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>${css}</style>
 </head>
 <body class="${extraClass}">
 <header class="masthead">
   <div class="shell masthead-row">
-    <a class="wordmark" href="/"><span class="seed"></span>AntSeed <em>Improvement Proposals</em></a>
+    <a class="wordmark" href="/">AntSeed <em>Improvement Proposals</em></a>
     <nav class="mast-nav">
       <a href="/#proposals">Proposals</a>
       <a href="/aip-1">Process</a>
@@ -143,7 +132,7 @@ for (const { front, body, file } of aips) {
       let v;
       if (k === 'author') v = renderAuthors(front.author);
       else if (k === 'discussions-to') v = `<a href="${esc(front[k])}">${esc(front[k])}</a>`;
-      else if (k === 'status') v = `<span class="pill ${statusClass(front.status)}">${esc(front.status)}</span>`;
+      else if (k === 'status') v = esc(front.status);
       else if (k === 'requires')
         v = String(front.requires)
           .split(/,\s*/)
@@ -166,7 +155,6 @@ for (const { front, body, file } of aips) {
 <main class="shell doc-shell">
   <article class="doc">
     <div class="doc-kicker"><a href="/">Proposals</a> / <span class="mono">AIP-${n}</span></div>
-    <span class="ghost-numeral" aria-hidden="true">${n}</span>
     <h1 class="doc-title">${esc(front.title)}</h1>
     <dl class="preamble">${rows}</dl>
     <div class="prose">${md.render(body)}</div>
@@ -198,23 +186,16 @@ const tables = groups
   .map(
     ({ status, items }) => `
 <section class="status-group">
-  <header class="group-head">
-    <h2><span class="pill ${statusClass(status)}">${esc(status)}</span></h2>
-    <p>${esc(STATUS_BLURB[status] ?? '')}</p>
-  </header>
+  <h2 class="group-title">${esc(status)}</h2>
   <table class="aip-table">
-    <thead><tr><th class="col-num">Number</th><th>Title</th><th class="col-type">Type</th><th class="col-auth">Author</th></tr></thead>
+    <thead><tr><th class="col-num">Number</th><th>Title</th><th class="col-auth">Author</th></tr></thead>
     <tbody>
     ${items
-      .map(({ front }) => {
-        const type = front.category ? `${front.type} · ${front.category}` : front.type;
-        return `<tr>
+      .map(({ front }) => `<tr>
         <td class="col-num"><a class="mono" href="/aip-${front.aip}">${front.aip}</a></td>
-        <td><a class="row-title" href="/aip-${front.aip}">${esc(front.title)}</a><span class="row-desc">${esc(front.description)}</span></td>
-        <td class="col-type mono">${esc(type)}</td>
+        <td><a class="row-title" href="/aip-${front.aip}">${esc(front.title)}</a></td>
         <td class="col-auth">${renderAuthors(front.author)}</td>
-      </tr>`;
-      })
+      </tr>`)
       .join('\n')}
     </tbody>
   </table>
@@ -225,14 +206,11 @@ const tables = groups
 const indexContent = `
 <section class="hero">
   <div class="shell">
-    <h1>AntSeed<br>Improvement<br>Proposals</h1>
+    <h1>AntSeed Improvement Proposals</h1>
     <p class="hero-sub">Design documents for the AntSeed peer-to-peer AI services network —
     protocol standards, contract specifications, and process. Anyone may author one:
     start from <a href="/aip-1">AIP-1</a> and open a pull request against
     <a href="${REPO}">AntSeed/AIPs</a>.</p>
-    <div class="hero-meta mono">${aips.length} proposal${aips.length === 1 ? '' : 's'} · ${groups
-  .map((g) => `${g.items.length} ${g.status.toLowerCase()}`)
-  .join(' · ')}</div>
   </div>
 </section>
 <main class="shell" id="proposals">
