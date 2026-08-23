@@ -4,7 +4,7 @@ title: Pluggable Verifier SDKs
 description: Defines pluggable verifier SDKs and the attestation handshake buyers use to verify seller nodes.
 author: Essam Hassan (@essamhassan)
 discussions-to: https://github.com/AntSeed/antseed/pull/713
-status: Draft
+status: Final
 type: Standards Track
 category: Interface
 created: 2026-07-13

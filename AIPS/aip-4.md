@@ -4,7 +4,7 @@ title: Proof-Carrying Wash-Trading Enforcement
 description: Defines ZK-proven wash-trading findings that reduce recognized-usage rewards in proportion to proven fabrication, anchored to a public permissionless block-hash store.
 author: Shahaf Antwarg (@kotevcode)
 discussions-to: https://github.com/AntSeed/loop-proof/pull/1
-status: Draft
+status: Review
 type: Standards Track
 category: Contracts
 created: 2026-08-18
