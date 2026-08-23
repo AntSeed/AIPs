@@ -86,6 +86,24 @@ locally:
 node scripts/validate.mjs
 ```
 
+## Website
+
+The site at [aips.antseed.com](https://aips.antseed.com) is generated straight
+from `AIPS/*.md` — one page per proposal plus an index grouped by status. No
+CMS, no server: `scripts/build-site.mjs` renders the markdown with the
+templates and styles in `site/`, and Cloudflare Pages builds and deploys on
+every merge to `main`.
+
+Build locally:
+
+```bash
+npm install
+npm run build   # validates, then renders to _site/
+```
+
+Cloudflare Pages settings: build command `npm run build`, output directory
+`_site`, production branch `main`.
+
 ## Copyright
 
 All AIPs, and this repository's documentation, are released under
