@@ -4,7 +4,7 @@ title: Recognized Usage Trust
 description: Defines the on-chain trust, reputation, and reward system for recognized AntSeed usage.
 author: Shahaf Antwarg (@kotevcode)
 discussions-to: https://github.com/AntSeed/antseed/pull/632
-status: Draft
+status: Final
 type: Standards Track
 category: Contracts
 created: 2026-07-08
