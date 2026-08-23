@@ -1,0 +1,13 @@
+// Cloudflare Workers config for aips.antseed.com.
+// Assets-only worker: `npm run build` renders AIPS/*.md into _site/, and
+// `npx wrangler deploy` publishes that directory. Workers Builds runs both
+// on every merge to main.
+{
+  "name": "aips",
+  "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "./_site",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}
