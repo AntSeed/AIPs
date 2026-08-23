@@ -101,8 +101,10 @@ npm install
 npm run build   # validates, then renders to _site/
 ```
 
-Cloudflare Pages settings: build command `npm run build`, output directory
-`_site`, production branch `main`.
+Deployment is Cloudflare Workers Builds: the repo is git-connected to the
+`aips` worker, and every push to `main` runs `npm run build` followed by
+`npx wrangler deploy` (config in `wrangler.jsonc`, serving `_site/` as static
+assets). Manual deploy: `npm run build && npx wrangler deploy`.
 
 ## Copyright
 
