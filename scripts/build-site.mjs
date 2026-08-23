@@ -94,9 +94,7 @@ const page = ({ title, description, canonicalPath, content, active = '' }) => `<
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
 <link rel="canonical" href="https://aips.antseed.com${canonicalPath}">
-<link rel="icon" href="data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#001E12"/><circle cx="16" cy="16" r="6.5" fill="#24CD95"/></svg>'
-)}">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=general-sans@500,600,700&display=swap" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -130,6 +128,7 @@ const aips = readdirSync(join(root, 'AIPS'))
 
 mkdirSync(out, { recursive: true });
 if (existsSync(join(root, 'assets'))) cpSync(join(root, 'assets'), join(out, 'assets'), { recursive: true });
+cpSync(join(root, 'site', 'favicon.svg'), join(out, 'favicon.svg'));
 
 // ── per-AIP pages ────────────────────────────────────────────────────
 for (const { front, body, file } of aips) {
