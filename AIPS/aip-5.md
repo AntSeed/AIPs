@@ -408,10 +408,9 @@ unmodified; only the plugin knows what its own sentinel means.
 **Pricing is deliberately out of scope here.** This AIP treats a routing
 peer as free, the same bootstrapping path attestation took — bundling a
 pricing scheme into this proposal would force reviewers to accept or reject
-both together. A companion pricing AIP can specify metered, subscription, or
-periodic-reporting mechanisms (such as a performance digest) a
-subscription-priced routing peer might need, without reopening anything
-specified here.
+both together. A companion pricing AIP can specify whatever metered or
+subscription mechanism a priced routing peer needs, without reopening
+anything specified here.
 
 ## Backwards Compatibility
 
