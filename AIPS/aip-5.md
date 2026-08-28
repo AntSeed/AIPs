@@ -478,12 +478,13 @@ until a companion pricing AIP exists, per-buyer rate limiting on
 implementation MUST NOT skip it on the theory that payment will handle abuse
 later.
 
-**Prompt content leaves the buyer's device.** `inputMessage` discloses
-conversation content to a third party for every routed request, whether or
-not that peer ends up serving it — strictly more exposure than ordinary
-inference, where a seller only sees prompts it actually answers. A buyer
-SHOULD trust a routing peer the way it trusts any seller it sends prompts to,
-and SHOULD be able to see which peer identity it's routing through.
+**Prompt content leaves the buyer's device.** `inputMessage` gives the
+routing peer itself access to conversation content on every routed request —
+in addition to, not instead of, whichever inference seller ultimately
+answers it. Routing a request means two parties see the prompt instead of
+one. A buyer SHOULD trust a routing peer the way it trusts any seller it
+sends prompts to, and SHOULD be able to see which peer identity it's routing
+through.
 
 **A dishonest routing peer can steer, but not override, a buyer's policy.**
 Because the returned order is treated as the decision, a compromised routing
