@@ -419,69 +419,40 @@ or something else — is left entirely to that companion proposal.
 
 ## Rationale
 
-**Capability string, not a new capability enum value.** The obvious design —
-add `'routing'` to `ProviderCapability` — does not work with what the network
-actually runs: the DHT capability-topic machinery that enum feeds is unwired
-end to end. `routing.v1` as a peer capability string, by contrast, rides
-exactly the same encode/decode/validate path `verifier.*`
-([AIP-3](./aip-3.md)) already exercises in production, so it costs no new
-metadata version and inherits a mechanism already proven to work.
+**Modeled on AIP-3's attestation design, not a new pattern.**
+[AIP-3](./aip-3.md) already solved this exact shape of problem: a seller-side
+handler on a reserved path, served before provider matching and payment,
+rate-limited per buyer, advertised as a capability string. This AIP reuses
+that shape rather than inventing a parallel one. Two specific choices follow
+from it: `routing.v1` is a capability *string*, not a new `ProviderCapability`
+enum value, because the DHT machinery that enum would need is unwired end to
+end and the capability-string path already works in production; and a routing
+peer's announcer MUST start even with zero registered providers, since a
+peer whose entire purpose is ranking rather than serving is the normal case
+for this role, not a corner case to work around.
 
-**Fixing announcer gating rather than working around it.** A routing peer
-that never runs an inference `Provider` is not a corner case — it is the
-expected shape of a peer whose entire purpose is ranking, not serving. Making
-peer announcement conditional on `Provider` registration would make routing
-peers structurally undiscoverable; the fix belongs in the node's
-announcement logic, not in a workaround at the routing layer.
+**The routing peer's ranked order is the decision, not a suggestion.** The
+order encodes a quality/cost tradeoff a buyer can't independently recompute
+from price and reputation alone, so a buyer MUST NOT locally re-sort it —
+that would discard the tradeoff the ranking exists to provide. But the
+routing peer's own `constraints` filtering is advisory only: a buyer MUST
+still re-apply its own price/trust/allow-block policy locally before
+dispatch, since a candidate can go stale (peer drops offline, cools down)
+between the routing call and dispatch. Policy filters the given order in
+place; it never re-ranks it.
 
-**Modeled on attestation deliberately.** [AIP-3](./aip-3.md) already solved
-the exact shape of problem this AIP has: a seller-side handler that claims a
-reserved path, serves it before provider matching and payment, needs a
-per-buyer rate limit because the work is expensive, and is advertised as a
-capability string a buyer filters for during ordinary discovery. Rather than
-re-deriving that design, this AIP reuses it, changing only what is
-substantively different (ranking model-and-seller pairs, not proving a
-claim) and leaving the plumbing shape the same.
+**Sentinel strings stay inside the plugin.** A host that recognized one
+router's sentinel model string by name would privilege that implementation
+over any other `Router` a buyer might load. The host forwards the request
+unmodified; only the plugin knows what its own sentinel means.
 
-**Preserving the routing peer's returned order.** A ranked list encodes a
-quality/cost tradeoff the buyer's own client cannot independently recompute
-from a peer's reputation and price alone — reputation is one input among
-several the routing peer already folds in. Re-sorting the list locally by
-reputation, the way AntSeed's existing fixed-model pipeline does when
-choosing among sellers of one already-decided model, would discard that
-tradeoff. The buyer's own policy filtering still applies, but as a filter
-over the given order, not a re-ranking of it.
-
-**The routing peer's constraints filtering is advisory, not authoritative.**
-A buyer sends its own price/trust ceilings and allow/block lists so a
-routing peer can pre-filter to what that buyer can actually use, but a buyer
-MUST still re-apply its own policy locally before dispatching, because
-constraints are a snapshot at request time: a peer can go unreachable, enter
-a cooldown, or drop out of an allow list update between the routing call and
-dispatch. Treating the routing peer's filtering as a courtesy rather than a
-guarantee is what lets a stale constraint degrade a choice instead of
-breaking it.
-
-**Sentinel model strings are not part of this protocol.** A host that
-special-cased one router's sentinel string would privilege that
-implementation over any other `Router` a buyer might load. Keeping sentinel
-recognition entirely inside the plugin, with the host forwarding the
-unmodified request body, is what keeps the router-plugin slot genuinely
-pluggable rather than nominally so.
-
-**No payment mechanism in this AIP.** Coupling a new peer role to a specific
-pricing scheme in the same proposal would force reviewers to accept or reject
-both together. A routing peer is useful, and reviewable, as an unpriced
-service first — the same bootstrapping path attestation took. A companion
-AIP can specify metered, subscription, or other pricing for a routing peer
-without reopening anything specified here.
-
-**Digest as a separate submission, not bundled into a payment message.** A
-routing peer's own reserved-path infrastructure already exists once this AIP
-ships; reusing it for a small, periodic aggregate submission needs no new
-protocol surface. Extending a closed, protocol-wide payment-message enum for
-what is explicitly optional, non-billing statistics would be a heavier change
-for a smaller benefit.
+**Pricing and the digest are both deliberately out of scope here.** This AIP
+treats a routing peer as free, the same bootstrapping path attestation took —
+bundling a pricing scheme into this proposal would force reviewers to accept
+or reject both together. The daily digest reuses this AIP's own reserved-path
+infrastructure rather than the protocol's payment-message enum, since it's
+optional, non-billing statistics, not something that needs a new
+protocol-wide surface.
 
 ## Backwards Compatibility
 
@@ -500,62 +471,40 @@ as [AIP-3](./aip-3.md) describes for verifier capabilities.
 
 ## Security Considerations
 
-**Unmetered ranking is a denial-of-service surface.** Ranking a request MAY
-be expensive, calling out to a separate scoring process. Exactly as with
-attestation, a seller MUST rate-limit `/_antseed/route` per buyer peer with
-bounded tracking state, so an unpaid or spam caller cannot exhaust a routing
-peer's resources for free. This AIP defines no payment gate itself, so until
-a companion pricing AIP is adopted, the rate limit is the only cost control a
-routing peer has, and implementations MUST NOT skip it on the theory that
-payment will handle abuse later.
+**Unmetered ranking is a denial-of-service surface.** Ranking MAY be
+expensive (a separate scoring process). This AIP defines no payment gate, so
+until a companion pricing AIP exists, per-buyer rate limiting on
+`/_antseed/route` is the only cost control a routing peer has — an
+implementation MUST NOT skip it on the theory that payment will handle abuse
+later.
 
-**Prompt content leaves the buyer's device.** `inputMessage` carries
-conversation content to a third party the buyer has chosen to trust for
-routing decisions, which is a strictly larger disclosure than ordinary
-inference — an inference seller sees the prompt it actually answers; a
-routing peer sees a representation of the prompt for every conversation a
-buyer routes, whether or not that peer ends up serving it. A buyer SHOULD
-apply the same trust judgment to a routing peer it applies to any seller it
-sends prompts to, and an implementation SHOULD give a buyer visibility into
-which peer identity it is routing through.
+**Prompt content leaves the buyer's device.** `inputMessage` discloses
+conversation content to a third party for every routed request, whether or
+not that peer ends up serving it — strictly more exposure than ordinary
+inference, where a seller only sees prompts it actually answers. A buyer
+SHOULD trust a routing peer the way it trusts any seller it sends prompts to,
+and SHOULD be able to see which peer identity it's routing through.
 
-**A routing peer can steer buyers toward sellers it favors.** Because the
-routing peer's returned order is treated as the decision (see Rationale), a
-dishonest or compromised routing peer could bias its ranking toward
-affiliated sellers rather than the buyer's actual best interest. This is
-bounded, not eliminated, by two things this AIP requires: the buyer's own
-`constraints` are still enforced locally regardless of what the routing peer
-returns, and a buyer client retains final policy authority to reject or
-reorder around any given candidate before dispatch — a routing peer can bias
-an ordering, but it cannot force a buyer to pay for something outside that
-buyer's own price, trust, or allow/block-list bounds.
+**A dishonest routing peer can steer, but not override, a buyer's policy.**
+Because the returned order is treated as the decision, a compromised routing
+peer could bias its ranking toward affiliated sellers. This is bounded, not
+eliminated: a `Router` implementation MUST re-apply the buyer's own
+`constraints` locally before dispatch rather than trusting the routing peer's
+own filtering (which is advisory, not authoritative — see Rationale), so a
+routing peer can bias an ordering but cannot force a buyer to pay outside its
+own price, trust, or allow/block bounds.
 
-**Unfiltered constraints could otherwise let an untrusted candidate through.**
-Because a routing peer's own filtering is advisory (Rationale), an
-implementation that skips local re-filtering after `selectRoute` returns
-would let a stale or manipulated ranked list bypass the buyer's actual
-policy. A conforming `Router` implementation MUST re-apply the buyer's
-`constraints` locally before dispatch, not merely forward whatever the
-routing peer returned.
-
-**The daily digest is aggregate but still linkable across time.** Even
-without prompt content, a per-subscriber sequence of daily aggregates —
-`modelMix` in particular — can function as a coarse usage profile of one
-buyer over time if stored under a stable, real buyer identifier. A routing
-peer operator SHOULD key stored digests by a one-way function of the buyer's
-peer id rather than the raw id, so that day-to-day linkage for calibration
-purposes does not also reveal which real network peer a subscriber is
-outside the routing peer's own records. This AIP does not mandate a specific
-scheme, since digest retention and anonymization policy are the routing
-peer operator's responsibility, not a wire-protocol requirement.
+**Daily digests are aggregate, but a stable buyer id still makes them
+linkable over time.** A sequence of `modelMix` values keyed to a real peer id
+is a coarse usage profile. A routing peer operator SHOULD key stored digests
+by a one-way function of the buyer's peer id rather than the raw id; this AIP
+leaves the specific scheme to the operator.
 
 **Plugins never hold a buyer's signing key.** `configureDailySigning`'s
-closure-based design exists specifically so that a `Router` — including a
-third-party one, since this protocol is intentionally open to competing
-implementations — never receives the buyer's actual private key or a
-handle capable of signing arbitrary messages. A conforming host
-implementation MUST NOT expose its payment manager or signer directly to
-plugin code under any of this AIP's new interface methods.
+closure-based design means a `Router` — including a third-party one — never
+receives the buyer's actual private key or a handle that can sign arbitrary
+messages. A host implementation MUST NOT expose its payment manager or
+signer directly to plugin code under any of this AIP's new methods.
 
 ## Copyright
 
