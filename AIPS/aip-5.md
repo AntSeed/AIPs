@@ -349,6 +349,14 @@ type ModelRoutingPreferences = {
 };
 ```
 
+`ModelRoutingPreferences` is buyer routing preference data, not `Router`
+configuration — a routing peer's own setup (its URL, credentials, seller
+identity) lives in whatever plugin-configuration mechanism the host already
+uses for its other plugins, not in this type or on the wire. A `Router`
+implementation MUST be fully configurable through its own plugin
+configuration alone; it MUST NOT require `ModelRoutingPreferences` to carry
+anything beyond the buyer-facing preference fields already listed above.
+
 A host (buyer proxy) implementation MUST call `selectRoute` before its
 existing fixed-model peer-narrowing step, whenever the registered `Router`
 implements it, and MUST treat a `null` result — including a `Router` that
