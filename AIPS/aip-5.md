@@ -2,7 +2,7 @@
 aip: 5
 title: Model Routing Peers
 description: Defines the routing peer role, its discovery and reserved request paths, and the buyer-side router interface for cross-model routing.
-author: Marco De Rossi (@marcoderossi90)
+author: Marco De Rossi (@marcoderossi90), Dawid (@Dawe000)
 discussions-to: https://github.com/AntSeed/antseed/discussions
 status: Draft
 type: Standards Track
