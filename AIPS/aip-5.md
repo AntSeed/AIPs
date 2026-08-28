@@ -430,11 +430,12 @@ as [AIP-3](./aip-3.md) describes for verifier capabilities.
 ## Security Considerations
 
 **Unmetered ranking is a denial-of-service surface.** Ranking MAY be
-expensive (a separate scoring process). This AIP defines no payment gate, so
-until a companion pricing AIP exists, per-buyer rate limiting on
-`/_antseed/route` is the only cost control a routing peer has — an
-implementation MUST NOT skip it on the theory that payment will handle abuse
-later.
+expensive (a separate scoring process). This AIP defines no payment gate —
+an operator MUST put its own payment or cost-control gate in front of a
+routing peer before running it against real traffic. Per-buyer rate limiting
+on `/_antseed/route` is REQUIRED regardless of that gate, and an
+implementation MUST NOT skip it on the theory that payment handles abuse
+instead.
 
 **Prompt content leaves the buyer's device.** `inputMessage` gives the
 routing peer itself access to conversation content on every routed request —
