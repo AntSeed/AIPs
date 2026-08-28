@@ -25,7 +25,7 @@ The proposal specifies three things: how a routing peer advertises itself and
 is discovered, without adding a new capability enum or a metadata codec
 version bump; the reserved request path a routing peer serves and its
 dispatch rules, modeled directly on [AIP-3](./aip-3.md)'s attestation route;
-and three new optional methods on the existing buyer-side
+and two new optional methods on the existing buyer-side
 `Router` interface that let a plugin pick model and seller together, ahead of
 AntSeed's existing fixed-model peer-selection pipeline, while that pipeline
 stays completely unmodified for any buyer who does not opt in.
@@ -231,7 +231,7 @@ MUST NOT parse it for routing decisions.
 
 ### Interface: `Router` Extensions
 
-The existing buyer-side `Router` interface gains three new, all-optional
+The existing buyer-side `Router` interface gains two new, all-optional
 methods. A `Router` that implements none of them is fully conforming and
 unaffected by this AIP; existing behavior for `selectPeer` and `onResult` is
 unchanged.
@@ -262,7 +262,6 @@ interface Router {
   ): Promise<RouteCandidate[] | null>; // null is a decline, falling through to the unmodified fixed-model pipeline
 
   getRoutingDecisions?(): RoutingDecisionRow[]; // the router's own local routing_decisions ledger, if it keeps one, for a host's savings-dashboard UI
-  updateRoutingPreferences?(preferences: ModelRoutingPreferences): void; // pushed by the host whenever live preferences change, including once at startup, so an already-running router picks up changes without a request in flight
 }
 
 type RouteCandidate = {
@@ -342,10 +341,8 @@ When `selectRoute` returns a non-null list, the host MUST walk it in the
 returned order using its existing per-candidate failover mechanism (fail over
 before the first token of a response, terminal after), MUST NOT re-sort it
 locally, and MUST call `onResult` for the peer actually used exactly as it
-does for a fixed-model selection. A host MUST forward `routingPreferences` to
-`selectRoute` on every call and MUST push preference updates to a `Router`
-that implements `updateRoutingPreferences` whenever those preferences change,
-including once at startup.
+does for a fixed-model selection. A host MUST forward the buyer's current
+`routingPreferences` to `selectRoute` on every call.
 
 A `Router` MUST NOT be given direct access to the buyer's payment-signing
 key or payment manager. This AIP defines no signing mechanism of its own; a
@@ -406,7 +403,7 @@ anything specified here.
 
 This proposal is additive. A peer that advertises no `routing.v1` capability
 is unaffected by this AIP; a `Router` implementation that does not implement
-any of the three new optional methods is unaffected and behaves exactly as it
+either of the two new optional methods is unaffected and behaves exactly as it
 does today. The `/_antseed/route` path is newly reserved, so a seller MUST
 NOT route it to a provider — though it was never a valid model or service
 id, so no existing conforming seller can already be using it for anything
