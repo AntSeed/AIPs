@@ -23,7 +23,7 @@ failover walk exactly as it would for a fixed model choice.
 
 The proposal specifies three things: how a routing peer advertises itself and
 is discovered, without adding a new capability enum or a metadata codec
-version bump; the two reserved request paths a routing peer serves and their
+version bump; the reserved request path a routing peer serves and its
 dispatch and rate-limit rules, modeled directly on [AIP-3](./aip-3.md)'s
 attestation route; and five new optional methods on the existing buyer-side
 `Router` interface that let a plugin pick model and seller together, ahead of
@@ -114,11 +114,10 @@ round-trip is introduced.
 
 ### Reserved Request Paths
 
-The path prefix `/_antseed/route` (`ANTSEED_ROUTE_PATH`) and the path
-`/_antseed/route/digest` (`ANTSEED_ROUTE_DIGEST_PATH`) are reserved. A seller
-MUST route a `POST` request for either path to its registered routing
-handler, and MUST do so before provider matching. A routing handler MUST be
-implemented as:
+The path `/_antseed/route` (`ANTSEED_ROUTE_PATH`) is reserved. A seller MUST
+route a `POST` request for this path to its registered routing handler, and
+MUST do so before provider matching. A routing handler MUST be implemented
+as:
 
 ```typescript
 interface RoutingServerHandler {
@@ -135,19 +134,13 @@ AIP also extends.
 
 Dispatch rules:
 
-- Exactly one routing handler MAY be registered per node. A `POST` to either
+- Exactly one routing handler MAY be registered per node. A `POST` to the
   reserved path when no handler is registered MUST return `404` with error
   code `not_routing_peer`.
 - Otherwise the seller MUST call `handleRoute(buyerPeerId, req)` and return
   its `SellerResponse` unmodified. A handler that throws or rejects MUST come
   back as a `500` response of type `routing_error` and MUST NOT crash request
   handling.
-- Both paths dispatch to the same handler. A handler distinguishes a route
-  request from a digest submission by `req.path`, since the request bodies
-  defined below are structurally distinct (a route request always carries
-  `inputMessage`; a digest submission never does). An implementation MAY also
-  reject a request on the wrong path with `400` rather than relying on body
-  shape.
 - A routing peer that gates on payment (left to a companion AIP; see Payments
   below) MUST reject before calling into any ranking logic, with `402`, so an
   unpaid caller never triggers the expensive part of the handler.
@@ -159,10 +152,7 @@ process — so, exactly as [AIP-3](./aip-3.md) requires for the attestation
 path, a seller MUST rate-limit `/_antseed/route` per buyer peer, with the
 tracking table capped so the limiter itself cannot become a memory-exhaustion
 vector. Cheap `400`/`402`/`404` rejections MUST NOT count against a buyer's
-quota; only a call that reaches `handleRoute` does. `/_antseed/route/digest`,
-being a small, fixed-shape, once-daily submission, is not subject to this
-rate limit but MUST still be size-bounded by the seller's ordinary request-size
-limits.
+quota; only a call that reaches `handleRoute` does.
 
 ### Wire Schemas
 
@@ -248,36 +238,6 @@ this response, for a buyer's own logging or support diagnostics; this AIP
 does not standardize its format beyond being a plain string, and a buyer
 MUST NOT parse it for routing decisions.
 
-The `POST /_antseed/route/digest` request body:
-
-```typescript
-interface DailyDigestBody {
-  v: 1; // wire schema version
-  period: string; // calendar day, YYYY-MM-DD, buyer's own local time zone
-  routedRequests: number; // count of requests routed this period
-  predictedCostUsd: number; // sum of estimate.costUsd across this period's routed requests
-  observedCostUsd: number; // sum of what the buyer actually paid this period
-  predictedInputTokens: number; // sum of predicted fresh input tokens this period
-  predictedCachedInputTokens: number; // sum of predicted cached input tokens this period
-  predictedOutputTokens: number; // sum of predicted output tokens this period
-  observedInputTokens: number; // sum of actual fresh input tokens this period
-  observedCachedInputTokens: number; // sum of actual cached input tokens this period
-  observedOutputTokens: number; // sum of actual output tokens this period
-  modelMix: Record<string, number>; // request count per model actually used this period
-  failovers: number; // count of requests that failed over to a later-ranked candidate
-  timeouts: number; // count of requests that timed out waiting on a routing decision
-  avgRoutingLatencyMs: number | null; // mean wall-clock time to produce a routing decision this period; null if none were timed
-  cqtDistribution: Record<number, number>; // request count per cqt value used this period
-}
-```
-
-`period` MUST be a calendar day in `YYYY-MM-DD` form, in the buyer's own
-local time zone. This is a fixed, closed schema: it MUST carry only
-period-level aggregate counters and MUST NOT carry prompt content,
-per-request rows, or any field that ties a routing decision to the message
-that produced it. A digest submission has no response body requirement
-beyond an HTTP status; a routing peer SHOULD return `204`.
-
 ### Interface: `Router` Extensions
 
 The existing buyer-side `Router` interface gains five new, all-optional
@@ -311,7 +271,7 @@ interface Router {
   ): Promise<RouteCandidate[] | null>; // null is a decline, falling through to the unmodified fixed-model pipeline
 
   getRoutingDecisions?(): RoutingDecisionRow[]; // the router's own local routing_decisions ledger, if it keeps one, for a host's savings-dashboard UI
-  configureDailySigning?(signDailyIfNeeded: (sellerPeerId: string) => Promise<void>): void; // hands the router a host-provided signing closure it can call to trigger its own daily payment; the router never touches the buyer's actual signer directly
+  configureDailySigning?(signDailyIfNeeded: (sellerPeerId: string) => Promise<void>): void; // hands the router a host-provided signing closure it can call to trigger its own daily payment; the router never touches the buyer's actual signer directly, and is responsible for its own consent-gating (e.g. reading an opt-in from its own plugin configuration) before ever calling this
   triggerDailySigningCheck?(): Promise<void>; // lets a host-owned background timer poke the same daily-signing gate outside of any request in flight, so a subscription doesn't lapse on a day with no chat traffic
   updateRoutingPreferences?(preferences: ModelRoutingPreferences): void; // pushed by the host whenever live preferences change, including once at startup, so an already-running router picks up changes without a request in flight
 }
@@ -359,7 +319,6 @@ type ModelRoutingPreferences = {
   allowedPeerIds: string[]; // buyer's explicit allow-list
   blockedPeerIds: string[]; // buyer's explicit block-list
   cqt?: number; // cost/quality tradeoff dial, one of the five discrete values {1,3,5,7,9}; only meaningful to a router that implements selectRoute
-  autoSubscriptionEnabled?: boolean; // explicit opt-in to a subscription-priced router's daily signing; off by default, a router gating real signing on this MUST treat "unknown" the same as false, never as implicit consent
 };
 ```
 
@@ -369,7 +328,14 @@ identity) lives in whatever plugin-configuration mechanism the host already
 uses for its other plugins, not in this type or on the wire. A `Router`
 implementation MUST be fully configurable through its own plugin
 configuration alone; it MUST NOT require `ModelRoutingPreferences` to carry
-anything beyond the buyer-facing preference fields already listed above.
+anything beyond the buyer-facing preference fields already listed above. This
+excludes payment-model-specific consent, too: whether a buyer has opted into
+a subscription-priced router's daily signing is not a preference every
+router shares a use for (a metered or free router has nothing to check it
+against), so it is not part of this type either — a subscription-priced
+`Router` implementation reads that consent from its own plugin
+configuration, the same place its other setup lives, never treating an
+absent or unreadable value as consent.
 
 A host (buyer proxy) implementation MUST call `selectRoute` before its
 existing fixed-model peer-narrowing step, whenever the registered `Router`
@@ -439,23 +405,23 @@ router's sentinel model string by name would privilege that implementation
 over any other `Router` a buyer might load. The host forwards the request
 unmodified; only the plugin knows what its own sentinel means.
 
-**Pricing and the digest are both deliberately out of scope here.** This AIP
-treats a routing peer as free, the same bootstrapping path attestation took —
-bundling a pricing scheme into this proposal would force reviewers to accept
-or reject both together. The daily digest reuses this AIP's own reserved-path
-infrastructure rather than the protocol's payment-message enum, since it's
-optional, non-billing statistics, not something that needs a new
-protocol-wide surface.
+**Pricing is deliberately out of scope here.** This AIP treats a routing
+peer as free, the same bootstrapping path attestation took — bundling a
+pricing scheme into this proposal would force reviewers to accept or reject
+both together. A companion pricing AIP can specify metered, subscription, or
+periodic-reporting mechanisms (such as a performance digest) a
+subscription-priced routing peer might need, without reopening anything
+specified here.
 
 ## Backwards Compatibility
 
 This proposal is additive. A peer that advertises no `routing.v1` capability
 is unaffected by this AIP; a `Router` implementation that does not implement
 any of the five new optional methods is unaffected and behaves exactly as it
-does today. The `/_antseed/route` and `/_antseed/route/digest` paths are
-newly reserved, so a seller MUST NOT route either to a provider — though
-neither was ever a valid model or service id, so no existing conforming
-seller can already be using them for anything else. No metadata codec
+does today. The `/_antseed/route` path is newly reserved, so a seller MUST
+NOT route it to a provider — though it was never a valid model or service
+id, so no existing conforming seller can already be using it for anything
+else. No metadata codec
 version bump, no `METADATA_VERSION` change, and no payment-message change is
 required. Mixed-version networks interoperate: a routing-aware buyer skips
 peers that advertise no `routing.v1` capability, and a routing-advertising
@@ -487,12 +453,6 @@ eliminated: a `Router` implementation MUST re-apply the buyer's own
 own filtering (which is advisory, not authoritative — see Rationale), so a
 routing peer can bias an ordering but cannot force a buyer to pay outside its
 own price, trust, or allow/block bounds.
-
-**Daily digests are aggregate, but a stable buyer id still makes them
-linkable over time.** A sequence of `modelMix` values keyed to a real peer id
-is a coarse usage profile. A routing peer operator SHOULD key stored digests
-by a one-way function of the buyer's peer id rather than the raw id; this AIP
-leaves the specific scheme to the operator.
 
 **Plugins never hold a buyer's signing key.** `configureDailySigning`'s
 closure-based design means a `Router` — including a third-party one — never
