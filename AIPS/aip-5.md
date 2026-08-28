@@ -469,31 +469,6 @@ peers that advertise no `routing.v1` capability, and a routing-advertising
 peer is ignored by buyers that do not implement `selectRoute` at all, exactly
 as [AIP-3](./aip-3.md) describes for verifier capabilities.
 
-## Test Cases
-
-A conforming implementation MUST include tests for:
-
-- routing-handler dispatch on `POST /_antseed/route` and
-  `POST /_antseed/route/digest` before provider matching;
-- `404` `not_routing_peer` when no handler is registered, and `500`
-  `routing_error` on a handler that throws;
-- per-buyer rate limiting on `/_antseed/route`, with cheap `400`/`402`/`404`
-  rejections not consuming quota;
-- capability round-trip: building and parsing the `routing.v1` capability
-  string, and confirming it fits the existing capability grammar and count
-  limits;
-- a node with a registered routing handler and zero registered providers
-  still starting its announcer and including `routing.v1`;
-- `selectRoute` returning `null` falling through to the unmodified existing
-  peer-selection pipeline, with no behavior change for a `Router` that does
-  not implement it;
-- candidate order from a non-null `selectRoute` result being preserved
-  through the failover walk, with no local reputation re-sort applied;
-- `onResult` receiving the new optional telemetry fields without breaking a
-  `Router` that ignores them;
-- round-trip encode/decode of `RouteRequestBody`, `RouteResponseBody`, and
-  `DailyDigestBody` at `v: 1`.
-
 ## Reference Implementation
 
 Reference implementation branch:
