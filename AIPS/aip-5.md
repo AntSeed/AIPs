@@ -218,16 +218,10 @@ routing peer needing to remember which candidates it offered to which buyer.
 `estimate` carries the routing peer's own per-candidate prediction, in the
 same units a buyer already reconciles against observed usage elsewhere in
 this protocol; it MUST be populated for every ranked entry, same as `price`.
-Whatever internal signal the routing peer used to produce the ranking itself
-(a numeric score, a raw quality prediction, or anything else its own ranking
-scheme computes) is that routing peer's own implementation detail and is NOT
-part of this wire response — a buyer has no use for a number it cannot
-recompute or independently verify, only for the order it produces and the
-concrete price/estimate figures it can check usage against. `router` is a
-single, routing-peer-chosen string identifying which router/version served
-this response, for a buyer's own logging or support diagnostics; this AIP
-does not standardize its format beyond being a plain string, and a buyer
-MUST NOT parse it for routing decisions.
+`router` is a single, routing-peer-chosen string identifying which
+router/version served this response, for a buyer's own logging or support
+diagnostics; this AIP does not standardize its format beyond being a plain
+string, and a buyer MUST NOT parse it for routing decisions.
 
 ### Interface: `Router` Extensions
 
