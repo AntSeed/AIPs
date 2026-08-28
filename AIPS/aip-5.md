@@ -2,7 +2,7 @@
 aip: 5
 title: Model Routing Peers
 description: Defines the routing peer role, its discovery and reserved request paths, and the buyer-side router interface for cross-model routing.
-author: Marco De Rossi (@marcoderossi90)
+author: Marco De Rossi (@marcoderossi90), Dawid (@Dawe000)
 discussions-to: https://github.com/AntSeed/antseed/discussions
 status: Draft
 type: Standards Track
@@ -144,7 +144,7 @@ Dispatch rules:
 - Both paths dispatch to the same handler. A handler distinguishes a route
   request from a digest submission by `req.path`, since the request bodies
   defined below are structurally distinct (a route request always carries
-  `sagePrompt`; a digest submission never does). An implementation MAY also
+  `inputMessage`; a digest submission never does). An implementation MAY also
   reject a request on the wrong path with `400` rather than relying on body
   shape.
 - A routing peer that gates on payment (left to a companion AIP; see Payments
@@ -534,7 +534,7 @@ a companion pricing AIP is adopted, the rate limit is the only cost control a
 routing peer has, and implementations MUST NOT skip it on the theory that
 payment will handle abuse later.
 
-**Prompt content leaves the buyer's device.** `sagePrompt` carries
+**Prompt content leaves the buyer's device.** `inputMessage` carries
 conversation content to a third party the buyer has chosen to trust for
 routing decisions, which is a strictly larger disclosure than ordinary
 inference — an inference seller sees the prompt it actually answers; a
