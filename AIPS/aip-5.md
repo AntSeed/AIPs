@@ -24,8 +24,8 @@ failover walk exactly as it would for a fixed model choice.
 The proposal specifies three things: how a routing peer advertises itself and
 is discovered, without adding a new capability enum or a metadata codec
 version bump; the reserved request path a routing peer serves and its
-dispatch and rate-limit rules, modeled directly on [AIP-3](./aip-3.md)'s
-attestation route; and five new optional methods on the existing buyer-side
+dispatch rules, modeled directly on [AIP-3](./aip-3.md)'s attestation route;
+and five new optional methods on the existing buyer-side
 `Router` interface that let a plugin pick model and seller together, ahead of
 AntSeed's existing fixed-model peer-selection pipeline, while that pipeline
 stays completely unmodified for any buyer who does not opt in.
@@ -67,8 +67,8 @@ exists on the network today, which shapes this proposal's discovery design:
 Separately, the reserved-path pattern this proposal needs — a seller-side
 handler claiming its own URL prefix, served before provider matching and
 before payment — already exists for attestation ([AIP-3](./aip-3.md)). That
-AIP's capability-string advertisement, dispatch-and-rate-limit rules, and
-plugin-registration shape transfer to routing almost unchanged; this proposal
+AIP's capability-string advertisement, dispatch rules, and plugin-registration
+shape transfer to routing almost unchanged; this proposal
 follows that precedent deliberately rather than inventing a parallel one.
 
 ## Specification
@@ -144,15 +144,6 @@ Dispatch rules:
 - A routing peer that gates on payment (left to a companion AIP; see Payments
   below) MUST reject before calling into any ranking logic, with `402`, so an
   unpaid caller never triggers the expensive part of the handler.
-
-### Routing Request Rate Limit
-
-Ranking a request is expensive — it MAY call out to a separate scoring
-process — so, exactly as [AIP-3](./aip-3.md) requires for the attestation
-path, a seller MUST rate-limit `/_antseed/route` per buyer peer, with the
-tracking table capped so the limiter itself cannot become a memory-exhaustion
-vector. Cheap `400`/`402`/`404` rejections MUST NOT count against a buyer's
-quota; only a call that reaches `handleRoute` does.
 
 ### Wire Schemas
 
@@ -381,8 +372,8 @@ or something else — is left entirely to that companion proposal.
 **Modeled on AIP-3's attestation design, not a new pattern.**
 [AIP-3](./aip-3.md) already solved this exact shape of problem: a seller-side
 handler on a reserved path, served before provider matching and payment,
-rate-limited per buyer, advertised as a capability string. This AIP reuses
-that shape rather than inventing a parallel one. Two specific choices follow
+advertised as a capability string. This AIP reuses that shape rather than
+inventing a parallel one. Two specific choices follow
 from it: `routing.v1` is a capability *string*, not a new `ProviderCapability`
 enum value, because the DHT machinery that enum would need is unwired end to
 end and the capability-string path already works in production; and a routing
@@ -432,10 +423,7 @@ as [AIP-3](./aip-3.md) describes for verifier capabilities.
 **Unmetered ranking is a denial-of-service surface.** Ranking MAY be
 expensive (a separate scoring process). This AIP defines no payment gate —
 an operator MUST put its own payment or cost-control gate in front of a
-routing peer before running it against real traffic. Per-buyer rate limiting
-on `/_antseed/route` is REQUIRED regardless of that gate, and an
-implementation MUST NOT skip it on the theory that payment handles abuse
-instead.
+routing peer before running it against real traffic.
 
 **Prompt content leaves the buyer's device.** `inputMessage` gives the
 routing peer itself access to conversation content on every routed request —
