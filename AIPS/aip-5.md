@@ -342,14 +342,7 @@ type RoutingDecisionRow = {
   predictedOutputTokens: number | null; // predicted output tokens; null when the gate skipped the call entirely
   cqt: number; // the cost/quality dial value in effect for this decision
   routingLatencyMs: number | null; // wall-clock time the routing call itself took; null when the gate skipped the call entirely (e.g. a reused decision)
-  // Price snapshot for each fixed, curated baseline model that was actually
-  // present in this decision's ranked response, collapsed across peers to
-  // the best available offer per model, keyed by model name -- absent
-  // entirely for a baseline model not offered at the moment of this
-  // decision. Lets a savings dashboard compare actual paid against one
-  // fixed reference model's real price at the time of THIS decision, without
-  // holding a live price table or re-fetching anything.
-  baselinePrices: Record<string, { inUsdPerM: number; outUsdPerM: number; cachedInUsdPerM: number | null }>;
+  baselinePrices: Record<string, { inUsdPerM: number; outUsdPerM: number; cachedInUsdPerM: number | null }>; // best available price per fixed, curated baseline model actually offered in this decision's ranked response, keyed by model name, absent when a baseline model wasn't offered; lets a savings dashboard compare against a fixed reference without a live price table
 };
 
 type ConversationIdentity = {
