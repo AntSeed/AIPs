@@ -169,16 +169,20 @@ The `POST /_antseed/route` request body:
 
 ```typescript
 interface RouteRequestBody {
-  v: 1;
-  cqt: number;
-  inputMessage: string;
-  promptTokens: number;
-  expectedCachedTokens: Array<{ model: string; peer: string; tokens: number }>;
+  v: 1; // wire schema version
+  cqt: number; // cost/quality tradeoff, 0-10, buyer-chosen
+  inputMessage: string; // routing peer's own ranking-input format; opaque to this AIP
+  promptTokens: number; // buyer's own token estimate for inputMessage
+  expectedCachedTokens: Array<{
+    model: string; // candidate model this cache-hit estimate applies to
+    peer: string; // candidate peer this cache-hit estimate applies to
+    tokens: number; // tokens of this conversation's prefix the buyer has observed that peer/model already holding warm
+  }>;
   constraints: {
-    maxInputUsdPerMillion?: number;
-    minTrustScore?: number;
-    allowedPeerIds?: string[];
-    blockedPeerIds?: string[];
+    maxInputUsdPerMillion?: number; // buyer's price ceiling; advisory pre-filter, not authoritative
+    minTrustScore?: number; // buyer's trust floor, 0-100 scale; advisory pre-filter, not authoritative
+    allowedPeerIds?: string[]; // buyer's explicit allow-list; advisory pre-filter, not authoritative
+    blockedPeerIds?: string[]; // buyer's explicit block-list; advisory pre-filter, not authoritative
   };
 }
 ```
@@ -199,14 +203,23 @@ The `POST /_antseed/route` response body, on success:
 
 ```typescript
 interface RouteResponseBody {
-  v: 1;
+  v: 1; // wire schema version
   ranked: Array<{
-    model: string;
-    peer: string;
-    estimate: { costUsd: number; inputTokens: number; cachedInputTokens: number; outputTokens: number };
-    price: { inUsdPerM: number; outUsdPerM: number; cachedInUsdPerM: number };
+    model: string; // candidate's model id
+    peer: string; // candidate's peer id
+    estimate: {
+      costUsd: number; // routing peer's predicted total cost for this candidate
+      inputTokens: number; // routing peer's predicted fresh input tokens
+      cachedInputTokens: number; // routing peer's predicted cached input tokens
+      outputTokens: number; // routing peer's predicted output tokens
+    };
+    price: {
+      inUsdPerM: number; // candidate's fresh input price, USD per million tokens
+      outUsdPerM: number; // candidate's output price, USD per million tokens
+      cachedInUsdPerM: number; // candidate's cached input price, USD per million tokens
+    };
   }>;
-  router: string;
+  router: string; // routing-peer-chosen identifier for which router/version produced this response; diagnostics only, not parseable
 }
 ```
 
@@ -238,22 +251,22 @@ The `POST /_antseed/route/digest` request body:
 
 ```typescript
 interface DailyDigestBody {
-  v: 1;
-  period: string;
-  routedRequests: number;
-  predictedCostUsd: number;
-  observedCostUsd: number;
-  predictedInputTokens: number;
-  predictedCachedInputTokens: number;
-  predictedOutputTokens: number;
-  observedInputTokens: number;
-  observedCachedInputTokens: number;
-  observedOutputTokens: number;
-  modelMix: Record<string, number>;
-  failovers: number;
-  timeouts: number;
-  avgRoutingLatencyMs: number | null;
-  cqtDistribution: Record<number, number>;
+  v: 1; // wire schema version
+  period: string; // calendar day, YYYY-MM-DD, buyer's own local time zone
+  routedRequests: number; // count of requests routed this period
+  predictedCostUsd: number; // sum of estimate.costUsd across this period's routed requests
+  observedCostUsd: number; // sum of what the buyer actually paid this period
+  predictedInputTokens: number; // sum of predicted fresh input tokens this period
+  predictedCachedInputTokens: number; // sum of predicted cached input tokens this period
+  predictedOutputTokens: number; // sum of predicted output tokens this period
+  observedInputTokens: number; // sum of actual fresh input tokens this period
+  observedCachedInputTokens: number; // sum of actual cached input tokens this period
+  observedOutputTokens: number; // sum of actual output tokens this period
+  modelMix: Record<string, number>; // request count per model actually used this period
+  failovers: number; // count of requests that failed over to a later-ranked candidate
+  timeouts: number; // count of requests that timed out waiting on a routing decision
+  avgRoutingLatencyMs: number | null; // mean wall-clock time to produce a routing decision this period; null if none were timed
+  cqtDistribution: Record<number, number>; // request count per cqt value used this period
 }
 ```
 
@@ -274,78 +287,85 @@ unchanged.
 ```typescript
 interface Router {
   // Existing, unchanged:
-  selectPeer(req: SerializedHttpRequest, peers: PeerInfo[]): PeerInfo | null;
+  selectPeer(req: SerializedHttpRequest, peers: PeerInfo[]): PeerInfo | null; // fixed-model peer selection, predates this AIP
   onResult(peer: PeerInfo, result: {
     success: boolean;
     latencyMs: number;
     tokens: number;
     // New, optional, additive fields on the existing result object:
-    freshInputTokens?: number;
-    cachedInputTokens?: number;
-    outputTokens?: number;
-    estimatedCostUsd?: number | null;
-    requestId?: string;
+    freshInputTokens?: number; // observed fresh (non-cached) input tokens for this request
+    cachedInputTokens?: number; // observed cached input tokens for this request
+    outputTokens?: number; // observed output tokens for this request
+    estimatedCostUsd?: number | null; // observed cost for this request, same computation buyer-proxy already derives at both onResult call sites
+    requestId?: string; // the originating client request's id, stable across a peer walk for one client request; lets a router pair this result with the selectRoute decision that produced it
   }): void;
 
   // New, all optional:
   selectRoute?(
-    req: SerializedHttpRequest,
-    peers: PeerInfo[],
-    conversation: ConversationIdentity | null,
-    routingPreferences: ModelRoutingPreferences | null,
-    defaultRoutedModel?: string | null,
-  ): Promise<RouteCandidate[] | null>;
+    req: SerializedHttpRequest, // raw, unmodified request -- a plugin reads its own sentinel from req.body itself
+    peers: PeerInfo[], // the buyer's currently discovered peer set
+    conversation: ConversationIdentity | null, // identity of the chat this request belongs to, null when it can't be determined
+    routingPreferences: ModelRoutingPreferences | null, // the buyer's current routing preferences
+    defaultRoutedModel?: string | null, // the pre-existing "antseed" alias's currently-resolved target, host-owned state
+  ): Promise<RouteCandidate[] | null>; // null is a decline, falling through to the unmodified fixed-model pipeline
 
-  getRoutingDecisions?(): RoutingDecisionRow[];
-  configureDailySigning?(signDailyIfNeeded: (sellerPeerId: string) => Promise<void>): void;
-  triggerDailySigningCheck?(): Promise<void>;
-  updateRoutingPreferences?(preferences: ModelRoutingPreferences): void;
+  getRoutingDecisions?(): RoutingDecisionRow[]; // the router's own local routing_decisions ledger, if it keeps one, for a host's savings-dashboard UI
+  configureDailySigning?(signDailyIfNeeded: (sellerPeerId: string) => Promise<void>): void; // hands the router a host-provided signing closure it can call to trigger its own daily payment; the router never touches the buyer's actual signer directly
+  triggerDailySigningCheck?(): Promise<void>; // lets a host-owned background timer poke the same daily-signing gate outside of any request in flight, so a subscription doesn't lapse on a day with no chat traffic
+  updateRoutingPreferences?(preferences: ModelRoutingPreferences): void; // pushed by the host whenever live preferences change, including once at startup, so an already-running router picks up changes without a request in flight
 }
 
 type RouteCandidate = {
-  peer: PeerInfo;
-  peerId: string;
-  serviceId: string;
-  request: SerializedHttpRequest;
-  reputation: number;
-  hasCachedInputPricing: boolean;
-  inputUsdPerMillion: number | null;
-  outputUsdPerMillion: number | null;
-  minImageUsdPerImage: number | null;
+  peer: PeerInfo; // the candidate seller's full discovered peer record
+  peerId: string; // the candidate seller's peer id
+  serviceId: string; // the model this candidate serves
+  request: SerializedHttpRequest; // already model-substituted for this candidate
+  reputation: number; // the candidate's reputation, 0-100 scale
+  hasCachedInputPricing: boolean; // whether the candidate advertises a cached-input price for this service
+  inputUsdPerMillion: number | null; // the candidate's advertised fresh input price, null if unadvertised
+  outputUsdPerMillion: number | null; // the candidate's advertised output price, null if unadvertised
+  minImageUsdPerImage: number | null; // the candidate's advertised image-generation price, null for a non-image service
 };
 
 type RoutingDecisionRow = {
-  atMs: number;
-  actualModel: string;
-  actualPeer: string;
-  actualPromptTokens: number;
-  actualCachedTokens: number;
-  actualCompletionTokens: number;
-  actualUsdcPaid: number;
-  predictedCostUsd: number | null;
-  predictedInputTokens: number | null;
-  predictedCachedInputTokens: number | null;
-  predictedOutputTokens: number | null;
-  cqt: number;
-  routingLatencyMs: number | null;
+  atMs: number; // wall-clock time this decision was made
+  actualModel: string; // the model actually used
+  actualPeer: string; // the peer actually used
+  actualPromptTokens: number; // observed prompt tokens, fresh and cached combined
+  actualCachedTokens: number; // observed cached-subset of actualPromptTokens
+  actualCompletionTokens: number; // observed output tokens
+  actualUsdcPaid: number; // what actually settled for this request; not a billing record itself, real settlement is governed by the signed SpendingAuth
+  predictedCostUsd: number | null; // this decision's own predicted cost, captured at selectRoute time; null when the gate skipped the call entirely
+  predictedInputTokens: number | null; // predicted fresh input tokens; null when the gate skipped the call entirely
+  predictedCachedInputTokens: number | null; // predicted cached input tokens; null when the gate skipped the call entirely
+  predictedOutputTokens: number | null; // predicted output tokens; null when the gate skipped the call entirely
+  cqt: number; // the cost/quality dial value in effect for this decision
+  routingLatencyMs: number | null; // wall-clock time the routing call itself took; null when the gate skipped the call entirely (e.g. a reused decision)
+  // Price snapshot for each fixed, curated baseline model that was actually
+  // present in this decision's ranked response, collapsed across peers to
+  // the best available offer per model, keyed by model name -- absent
+  // entirely for a baseline model not offered at the moment of this
+  // decision. Lets a savings dashboard compare actual paid against one
+  // fixed reference model's real price at the time of THIS decision, without
+  // holding a live price table or re-fetching anything.
   baselinePrices: Record<string, { inUsdPerM: number; outUsdPerM: number; cachedInUsdPerM: number | null }>;
 };
 
 type ConversationIdentity = {
-  tool: string;
-  sessionKey: string;
-  parentSessionKey: string | null;
-  isUserThread: boolean;
+  tool: string; // slug for the originating tool (e.g. 'claude-code', 'codex', 'opencode', 'unknown')
+  sessionKey: string; // stable per-conversation key as sent by the tool
+  parentSessionKey: string | null; // parent session for subagent traffic, when the tool advertises one
+  isUserThread: boolean; // false when the tool declares this thread its own housekeeping rather than a user's chat; true by default
 };
 
 type ModelRoutingPreferences = {
-  preferFreePeers: boolean;
-  maxInputUsdPerMillion: number;
-  minTrustScore: number;
-  allowedPeerIds: string[];
-  blockedPeerIds: string[];
-  cqt?: number;
-  autoSubscriptionEnabled?: boolean;
+  preferFreePeers: boolean; // prefer $0-priced candidates when ranking
+  maxInputUsdPerMillion: number; // buyer's price ceiling
+  minTrustScore: number; // buyer's trust floor, 0-100 scale
+  allowedPeerIds: string[]; // buyer's explicit allow-list
+  blockedPeerIds: string[]; // buyer's explicit block-list
+  cqt?: number; // cost/quality tradeoff dial, one of the five discrete values {1,3,5,7,9}; only meaningful to a router that implements selectRoute
+  autoSubscriptionEnabled?: boolean; // explicit opt-in to a subscription-priced router's daily signing; off by default, a router gating real signing on this MUST treat "unknown" the same as false, never as implicit consent
 };
 ```
 
