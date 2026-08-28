@@ -171,8 +171,8 @@ The `POST /_antseed/route` request body:
 interface RouteRequestBody {
   v: 1;
   cqt: number;
-  sagePrompt: string;
-  contextTokens: number;
+  inputMessage: string;
+  promptTokens: number;
   expectedCachedTokens: Array<{ model: string; peer: string; tokens: number }>;
   constraints: {
     maxInputUsdPerMillion?: number;
@@ -184,10 +184,10 @@ interface RouteRequestBody {
 ```
 
 `cqt` is a cost/quality tradeoff value on a 0–10 scale, buyer-chosen.
-`sagePrompt` MUST be the routing peer's own input format for whatever ranking
-scheme it runs; this AIP does not standardize prompt content, only that a
-string field carries it. `expectedCachedTokens` lets the buyer report, per
-candidate it has itself observed billing for, how many tokens of this
+`inputMessage` MUST be the routing peer's own input format for whatever
+ranking scheme it runs; this AIP does not standardize prompt content, only
+that a string field carries it. `expectedCachedTokens` lets the buyer report,
+per candidate it has itself observed billing for, how many tokens of this
 conversation's prefix that seller already holds warm — a routing peer MUST
 NOT be expected to track this itself, since a routing peer that retains no
 per-conversation history cannot observe it. `constraints` carries the buyer's
@@ -203,16 +203,10 @@ interface RouteResponseBody {
   ranked: Array<{
     model: string;
     peer: string;
-    score: number;
-    predictedQuality: number;
-    predictedCostUsd: number;
-    predictedInputTokens: number;
-    predictedCachedInputTokens: number;
-    predictedOutputTokens: number;
+    estimate: { costUsd: number; inputTokens: number; cachedInputTokens: number; outputTokens: number };
     price: { inUsdPerM: number; outUsdPerM: number; cachedInUsdPerM: number };
   }>;
-  baselineSuggestion: { model: string; peer: string; price: { inUsdPerM: number; outUsdPerM: number } } | null;
-  receipt: { routerId: string; artifactVersion: string; lambdaVersion: string };
+  router: string;
 }
 ```
 
@@ -226,6 +220,19 @@ place, not by re-ordering the remainder. `price` MUST be populated for every
 ranked entry, not only the winner, so a buyer can compute a savings figure
 against any candidate without a separate price lookup and without the
 routing peer needing to remember which candidates it offered to which buyer.
+`estimate` carries the routing peer's own per-candidate prediction, in the
+same units a buyer already reconciles against observed usage elsewhere in
+this protocol; it MUST be populated for every ranked entry, same as `price`.
+Whatever internal signal the routing peer used to produce the ranking itself
+(a numeric score, a raw quality prediction, or anything else its own ranking
+scheme computes) is that routing peer's own implementation detail and is NOT
+part of this wire response — a buyer has no use for a number it cannot
+recompute or independently verify, only for the order it produces and the
+concrete price/estimate figures it can check usage against. `router` is a
+single, routing-peer-chosen string identifying which router/version served
+this response, for a buyer's own logging or support diagnostics; this AIP
+does not standardize its format beyond being a plain string, and a buyer
+MUST NOT parse it for routing decisions.
 
 The `POST /_antseed/route/digest` request body:
 
@@ -514,6 +521,21 @@ AIP's Draft status; the branch currently advertises a routing peer's price
 only, via a mechanism a companion pricing AIP covers, and its node
 implementation still gates announcement on at least one registered provider.
 Both are tracked as follow-up work against the reference implementation.
+
+The reference implementation's CLI (`apps/cli`) already loads a `Router` by
+plugin package name, matching this AIP's plugin-agnostic design (see
+Rationale, "Sentinel model strings are not part of this protocol") — any
+router package name works, and its own default is the unrelated fixed-model
+`local` router, not any particular routing peer's plugin. Its desktop
+application, however, currently hardcodes a single vendor router package as
+the only one its UI can enable, and the buyer preference it persists
+(`ModelRoutingPreferences.autoSubscriptionEnabled`) is a plain boolean --
+sufficient to represent "the one router this build knows about is on or
+off," but with no field recording *which* router package a multi-router
+build would have selected. A conforming desktop implementation that wants to
+offer more than one `Router` plugin will need a router-identifying field
+here, not just a boolean; tracked as follow-up work against the reference
+implementation, same as the two gaps above.
 
 ## Security Considerations
 
