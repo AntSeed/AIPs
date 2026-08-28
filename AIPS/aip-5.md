@@ -498,32 +498,6 @@ peers that advertise no `routing.v1` capability, and a routing-advertising
 peer is ignored by buyers that do not implement `selectRoute` at all, exactly
 as [AIP-3](./aip-3.md) describes for verifier capabilities.
 
-## Reference Implementation
-
-Reference implementation branch:
-https://github.com/levantolabs/antseed-levanto-router/tree/model-routing
-
-Key surfaces:
-
-- `RoutingServerHandler`, `ANTSEED_ROUTE_PATH`, `ANTSEED_ROUTE_DIGEST_PATH` in
-  `packages/node/src/interfaces/plugin.ts`;
-- reserved-path dispatch in `packages/node/src/seller-request-handler.ts`;
-- the extended `Router` interface, `RouteCandidate`, and `RoutingDecisionRow`
-  in `packages/node/src/interfaces/buyer-router.ts`;
-- `ConversationIdentity` in `packages/node/src/routing/conversation-identity.ts`;
-- `ModelRoutingPreferences` in `packages/node/src/routing/model-route-ranking.ts`;
-- the `selectRoute` call site, candidate walk, and extended `onResult`
-  telemetry in `apps/cli/src/proxy/buyer-proxy.ts`;
-- the vendor `Router` implementation and wire-schema types in
-  `plugins/router-levanto/src/router.ts` and `digest.ts`.
-
-The reference branch's `routing.v1` capability advertisement and the
-announcer fix for provider-less peers are not yet implemented as of this
-AIP's Draft status; the branch currently advertises a routing peer's price
-only, via a mechanism a companion pricing AIP covers, and its node
-implementation still gates announcement on at least one registered provider.
-Both are tracked as follow-up work against the reference implementation.
-
 ## Security Considerations
 
 **Unmetered ranking is a denial-of-service surface.** Ranking a request MAY
