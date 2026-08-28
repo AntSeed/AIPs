@@ -25,7 +25,7 @@ The proposal specifies three things: how a routing peer advertises itself and
 is discovered, without adding a new capability enum or a metadata codec
 version bump; the reserved request path a routing peer serves and its
 dispatch rules, modeled directly on [AIP-3](./aip-3.md)'s attestation route;
-and five new optional methods on the existing buyer-side
+and three new optional methods on the existing buyer-side
 `Router` interface that let a plugin pick model and seller together, ahead of
 AntSeed's existing fixed-model peer-selection pipeline, while that pipeline
 stays completely unmodified for any buyer who does not opt in.
@@ -231,7 +231,7 @@ MUST NOT parse it for routing decisions.
 
 ### Interface: `Router` Extensions
 
-The existing buyer-side `Router` interface gains five new, all-optional
+The existing buyer-side `Router` interface gains three new, all-optional
 methods. A `Router` that implements none of them is fully conforming and
 unaffected by this AIP; existing behavior for `selectPeer` and `onResult` is
 unchanged.
@@ -262,8 +262,6 @@ interface Router {
   ): Promise<RouteCandidate[] | null>; // null is a decline, falling through to the unmodified fixed-model pipeline
 
   getRoutingDecisions?(): RoutingDecisionRow[]; // the router's own local routing_decisions ledger, if it keeps one, for a host's savings-dashboard UI
-  configureDailySigning?(signDailyIfNeeded: (sellerPeerId: string) => Promise<void>): void; // hands the router a host-provided signing closure it can call to trigger its own daily payment; the router never touches the buyer's actual signer directly, and is responsible for its own consent-gating (e.g. reading an opt-in from its own plugin configuration) before ever calling this
-  triggerDailySigningCheck?(): Promise<void>; // lets a host-owned background timer poke the same daily-signing gate outside of any request in flight, so a subscription doesn't lapse on a day with no chat traffic
   updateRoutingPreferences?(preferences: ModelRoutingPreferences): void; // pushed by the host whenever live preferences change, including once at startup, so an already-running router picks up changes without a request in flight
 }
 
@@ -350,11 +348,12 @@ that implements `updateRoutingPreferences` whenever those preferences change,
 including once at startup.
 
 A `Router` MUST NOT be given direct access to the buyer's payment-signing
-key. A `Router` that needs to trigger its own periodic signing (for example,
-a subscription-priced routing peer under a companion pricing AIP) MUST do so
-only through a host-provided signing closure passed via
-`configureDailySigning`, never by holding a reference to the buyer's signer
-or payment manager directly.
+key or payment manager. This AIP defines no signing mechanism of its own; a
+`Router` that needs to trigger its own periodic signing (for example, a
+subscription-priced routing peer) gets that capability from whatever
+companion pricing AIP defines it, and that mechanism MUST itself be a
+host-provided closure the router calls, never a direct reference to the
+buyer's signer.
 
 ### Payments
 
@@ -407,7 +406,7 @@ anything specified here.
 
 This proposal is additive. A peer that advertises no `routing.v1` capability
 is unaffected by this AIP; a `Router` implementation that does not implement
-any of the five new optional methods is unaffected and behaves exactly as it
+any of the three new optional methods is unaffected and behaves exactly as it
 does today. The `/_antseed/route` path is newly reserved, so a seller MUST
 NOT route it to a provider — though it was never a valid model or service
 id, so no existing conforming seller can already be using it for anything
@@ -442,11 +441,14 @@ own filtering (which is advisory, not authoritative — see Rationale), so a
 routing peer can bias an ordering but cannot force a buyer to pay outside its
 own price, trust, or allow/block bounds.
 
-**Plugins never hold a buyer's signing key.** `configureDailySigning`'s
-closure-based design means a `Router` — including a third-party one — never
-receives the buyer's actual private key or a handle that can sign arbitrary
-messages. A host implementation MUST NOT expose its payment manager or
-signer directly to plugin code under any of this AIP's new methods.
+**Plugins never hold a buyer's signing key.** None of this AIP's own new
+`Router` methods expose signer access, since this AIP defines no signing
+mechanism. Any signing capability a companion pricing AIP adds MUST follow
+the same closure-based pattern established elsewhere in this protocol: a
+`Router` — including a third-party one — gets a host-provided closure to
+call, never the buyer's actual private key or a handle that can sign
+arbitrary messages. A host implementation MUST NOT expose its payment
+manager or signer directly to plugin code.
 
 ## Copyright
 
