@@ -206,12 +206,15 @@ interface RouteResponseBody {
 ```
 
 `ranked` MUST be ordered by the routing peer's own objective, best candidate
-first. A buyer MUST treat this order as the routing decision itself and MUST
+first. A host MUST treat this order as the routing decision itself and MUST
 NOT locally re-sort it by an independent signal such as reputation before
 walking it, since doing so would discard the quality/cost tradeoff the
-ranking encodes; a buyer's own policy filtering (allow/block lists, price and
-trust ceilings) applies during the walk, skipping disallowed entries in
-place, not by re-ordering the remainder. `price` MUST be populated for every
+ranking encodes. The `Router` implementation returning this list to the host
+(inside `selectRoute`) is responsible for re-applying the buyer's own policy
+(allow/block lists, price and trust ceilings) before returning it, dropping
+disallowed entries rather than reordering around them — by the time the host
+receives and walks the list, it MUST already reflect that policy. `price`
+MUST be populated for every
 ranked entry, not only the winner, so a buyer can compute a savings figure
 against any candidate without a separate price lookup and without the
 routing peer needing to remember which candidates it offered to which buyer.
@@ -373,13 +376,14 @@ for this role, not a corner case to work around.
 
 **The routing peer's ranked order is the decision, not a suggestion.** The
 order encodes a quality/cost tradeoff a buyer can't independently recompute
-from price and reputation alone, so a buyer MUST NOT locally re-sort it —
+from price and reputation alone, so a host MUST NOT locally re-sort it —
 that would discard the tradeoff the ranking exists to provide. But the
-routing peer's own `constraints` filtering is advisory only: a buyer MUST
-still re-apply its own price/trust/allow-block policy locally before
-dispatch, since a candidate can go stale (peer drops offline, cools down)
-between the routing call and dispatch. Policy filters the given order in
-place; it never re-ranks it.
+routing peer's own `constraints` filtering is advisory only, since a host
+has no way to verify a remote routing peer actually applied it correctly:
+a `Router` implementation MUST still re-apply the buyer's own
+price/trust/allow-block policy itself, inside `selectRoute`, dropping
+disallowed candidates before ever returning the list to the host. Policy
+filters the given order in place; it never re-ranks it.
 
 **Sentinel strings stay inside the plugin.** A host that recognized one
 router's sentinel model string by name would privilege that implementation
