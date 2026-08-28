@@ -520,21 +520,6 @@ only, via a mechanism a companion pricing AIP covers, and its node
 implementation still gates announcement on at least one registered provider.
 Both are tracked as follow-up work against the reference implementation.
 
-The reference implementation's CLI (`apps/cli`) already loads a `Router` by
-plugin package name, matching this AIP's plugin-agnostic design (see
-Rationale, "Sentinel model strings are not part of this protocol") — any
-router package name works, and its own default is the unrelated fixed-model
-`local` router, not any particular routing peer's plugin. Its desktop
-application, however, currently hardcodes a single vendor router package as
-the only one its UI can enable, and the buyer preference it persists
-(`ModelRoutingPreferences.autoSubscriptionEnabled`) is a plain boolean --
-sufficient to represent "the one router this build knows about is on or
-off," but with no field recording *which* router package a multi-router
-build would have selected. A conforming desktop implementation that wants to
-offer more than one `Router` plugin will need a router-identifying field
-here, not just a boolean; tracked as follow-up work against the reference
-implementation, same as the two gaps above.
-
 ## Security Considerations
 
 **Unmetered ranking is a denial-of-service surface.** Ranking a request MAY
