@@ -2,7 +2,7 @@
 aip: 5
 title: Model Routing Peers
 description: Defines the routing peer role, its discovery and reserved request paths, and the buyer-side router interface for cross-model routing.
-author: Marco De Rossi (@marcoderossi90), Dawid (@Dawe000)
+author: Marco De Rossi (@marcoderossi90)
 discussions-to: https://github.com/AntSeed/antseed/discussions
 status: Draft
 type: Standards Track
@@ -250,8 +250,6 @@ interface DailyDigestBody {
   observedCachedInputTokens: number;
   observedOutputTokens: number;
   modelMix: Record<string, number>;
-  regenerations: number;
-  overrides: number;
   failovers: number;
   timeouts: number;
   avgRoutingLatencyMs: number | null;
