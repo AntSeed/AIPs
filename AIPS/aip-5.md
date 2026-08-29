@@ -209,10 +209,7 @@ interface RouteResponseBody {
 first. A host SHOULD treat this order as its routing decision and SHOULD
 NOT locally re-sort it by an independent signal such as reputation before
 walking it, since doing so would discard the quality/cost tradeoff the
-ranking encodes — but this is a suggestion, not a binding instruction: a
-buyer retains full discretion to disregard it, consult a different routing
-peer it trusts more, or impose its own ranking on top of the returned order.
-The `Router` implementation returning this list to the host
+ranking encodes. The `Router` implementation returning this list to the host
 (inside `selectRoute`) is responsible for re-applying the buyer's own policy
 (allow/block lists, price and trust ceilings) before returning it, dropping
 disallowed entries rather than reordering around them — by the time the host
@@ -337,15 +334,12 @@ special-case, or validate against any specific sentinel string — that
 recognition is entirely the plugin's business, so that different `Router`
 implementations MAY choose different sentinels without any host change.
 
-A host that acts on a non-null `selectRoute` result SHOULD walk it in the
+When `selectRoute` returns a non-null list, the host SHOULD walk it in the
 returned order using its existing per-candidate failover mechanism (fail over
-before the first token of a response, terminal after) and SHOULD NOT re-sort
-it locally, for the same reason given in Rationale — a host MAY instead
-disregard the result, consult a different routing peer, or impose its own
-ranking. Whichever path a host takes, it MUST call `onResult` for the peer
-actually used exactly as it does for a fixed-model selection, and MUST
-forward the buyer's current `routingPreferences` to `selectRoute` on every
-call.
+before the first token of a response, terminal after), SHOULD NOT re-sort it
+locally, and MUST call `onResult` for the peer actually used exactly as it
+does for a fixed-model selection. A host MUST forward the buyer's current
+`routingPreferences` to `selectRoute` on every call.
 
 A `Router` MUST NOT be given direct access to the buyer's payment-signing
 key or payment manager. This AIP defines no signing mechanism of its own; a
@@ -382,15 +376,11 @@ for this role, not a corner case to work around.
 
 **The routing peer's ranked order is a suggestion, not a binding decision.**
 The order encodes a quality/cost tradeoff a buyer can't independently
-recompute from price and reputation alone, so a host that follows it SHOULD
-NOT locally re-sort it — that would discard the tradeoff the ranking exists
-to provide. But nothing in this AIP compels a buyer to follow it: on a
-decentralized network a buyer MAY disregard the suggestion, ask a different
-routing peer it trusts more, or blend several routing peers' rankings — the
-routing peer proposes, the buyer's own client decides. Separately, the
-routing peer's own `constraints` filtering is advisory only, since a host
-has no way to verify a remote routing peer actually applied it correctly:
-a `Router` implementation MUST still re-apply the buyer's own
+recompute from price and reputation alone, so a host SHOULD NOT locally
+re-sort it — that would discard the tradeoff the ranking exists to provide.
+But the routing peer's own `constraints` filtering is advisory only, since a
+host has no way to verify a remote routing peer actually applied it
+correctly: a `Router` implementation MUST still re-apply the buyer's own
 price/trust/allow-block policy itself, inside `selectRoute`, dropping
 disallowed candidates before ever returning the list to the host. Policy
 filters the given order in place; it never re-ranks it.
@@ -437,15 +427,15 @@ one. A buyer SHOULD trust a routing peer the way it trusts any seller it
 sends prompts to, and SHOULD be able to see which peer identity it's routing
 through.
 
-**A dishonest routing peer can steer, but never override, a buyer's policy.**
-Even though following a routing peer's ranking is the host's own choice, not
-a requirement (Rationale), a compromised routing peer could still bias its
-ranking toward affiliated sellers, hoping a host follows it uncritically.
-This is bounded regardless: a `Router` implementation MUST re-apply the buyer's own
-`constraints` locally before dispatch rather than trusting the routing peer's
-own filtering (which is advisory, not authoritative — see Rationale), so a
-routing peer can bias an ordering but cannot force a buyer to pay outside its
-own price, trust, or allow/block bounds.
+**A dishonest routing peer can steer, but not override, a buyer's policy.**
+Because a host that follows it treats the returned order as its routing
+decision, a compromised routing peer could bias its ranking toward
+affiliated sellers. This is bounded, not eliminated: a `Router`
+implementation MUST re-apply the buyer's own `constraints` locally before
+dispatch rather than trusting the routing peer's own filtering (which is
+advisory, not authoritative — see Rationale), so a routing peer can bias an
+ordering but cannot force a buyer to pay outside its own price, trust, or
+allow/block bounds.
 
 **Plugins never hold a buyer's signing key.** None of this AIP's own new
 `Router` methods expose signer access, since this AIP defines no signing
